@@ -50,25 +50,26 @@
   will also lookup the first article that's part of the cache-bundle and return a 302
   redirecting to that page."
   (interceptor/interceptor
-   {:name  ::render
-    :enter (fn render-doc [{:keys [cache-bundle] :as ctx}]
-             (let [path-params (-> ctx :request :path-params)
-                   page-type   (-> ctx :route :route-name)]
-               (if-let [first-article-slug (and (= page-type :artifact/version)
-                                                (-> cache-bundle :version :doc first :attrs :slug))]
-                 ;; instead of rendering a mostly white page we
-                 ;; redirect to the README/first listed article
-                 (let [location (routes/url-for :artifact/doc :params (assoc path-params :article-slug first-article-slug))]
-                   (assoc ctx :response {:status 302, :headers {"Location" location}}))
+    {:name  ::render
+     :enter (fn render-doc [{:keys [cache-bundle] :as ctx}]
+              (let [path-params (update (-> ctx :request :path-params)
+                                        :namespace #(clojure.string/replace % #"%3C-%3E" "<->"))
+                    page-type   (-> ctx :route :route-name)]
+                (if-let [first-article-slug (and (= page-type :artifact/version)
+                                                 (-> cache-bundle :version :doc first :attrs :slug))]
+                  ;; instead of rendering a mostly white page we
+                  ;; redirect to the README/first listed article
+                  (let [location (routes/url-for :artifact/doc :params (assoc path-params :article-slug first-article-slug))]
+                    (assoc ctx :response {:status 302, :headers {"Location" location}}))
 
-                 (if cache-bundle
-                   (pu/ok-html ctx (html/render page-type path-params {:cache-bundle cache-bundle
-                                                                       :pom (::pom-info ctx)
-                                                                       :last-build (::last-build ctx)}))
-                   (let [resp {:status 404
-                               :headers {"Content-Type" "text/html"}
-                               :body (str (render-build-req/request-build-page path-params))}]
-                     (assoc ctx :response resp))))))}))
+                  (if cache-bundle
+                    (pu/ok-html ctx (html/render page-type path-params {:cache-bundle cache-bundle
+                                                                        :pom (::pom-info ctx)
+                                                                        :last-build (::last-build ctx)}))
+                    (let [resp {:status 404
+                                :headers {"Content-Type" "text/html"}
+                                :body (str (render-build-req/request-build-page path-params))}]
+                      (assoc ctx :response resp))))))}))
 
 (def doc-slug-parser
   "Further process the `article-slug` URL segment by splitting on `/` characters.
